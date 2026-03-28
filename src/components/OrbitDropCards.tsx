@@ -3,10 +3,16 @@
 import React, { useEffect, useId, useState } from "react";
 
 interface OrbitDropCardsProps {
-  actionIntent?: (intent: "create" | "join") => void;
+  /** Fired on second click on the Create Room card (after expand). */
+  onSecondClickCreate?: () => void;
+  /** Fired on second click on the Join Room card (after expand). */
+  onSecondClickJoin?: () => void;
 }
 
-export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
+export function OrbitDropCards({
+  onSecondClickCreate,
+  onSecondClickJoin,
+}: OrbitDropCardsProps) {
   const [activeState, setActiveState] = useState<null | "create" | "join">(
     null,
   );
@@ -29,7 +35,8 @@ export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
   ) => {
     e.stopPropagation();
     if (activeState === type) {
-      if (actionIntent) actionIntent(type);
+      if (type === "create" && onSecondClickCreate) onSecondClickCreate();
+      else if (type === "join" && onSecondClickJoin) onSecondClickJoin();
     } else {
       setActiveState(type);
     }

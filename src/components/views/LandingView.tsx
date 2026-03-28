@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { OrbitDropCards } from "@/components/OrbitDropCards";
 
 interface LandingViewProps {
-  onScrollToApp: () => void;
+  lobby: {
+    openChoice: () => void;
+    openCreate: (via: "card" | "choice") => void;
+    openJoin: (via: "card" | "choice") => void;
+  };
 }
 
-export function LandingView({ onScrollToApp }: LandingViewProps) {
+export function LandingView({ lobby }: LandingViewProps) {
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
@@ -69,7 +73,7 @@ export function LandingView({ onScrollToApp }: LandingViewProps) {
           <Button
             variant="secondary"
             className="h-9 rounded-full border-white/10 bg-black/40 px-5 text-sm font-medium transition-all hover:border-white/20 hover:bg-white/10"
-            onClick={onScrollToApp}
+            onClick={() => lobby.openChoice()}
           >
             Get started
           </Button>
@@ -119,7 +123,10 @@ export function LandingView({ onScrollToApp }: LandingViewProps) {
         </motion.p>
 
         <motion.div variants={itemVariants} className="mt-4 w-full">
-          <OrbitDropCards actionIntent={() => onScrollToApp()} />
+          <OrbitDropCards
+            onSecondClickCreate={() => lobby.openCreate("card")}
+            onSecondClickJoin={() => lobby.openJoin("card")}
+          />
         </motion.div>
       </motion.main>
     </div>

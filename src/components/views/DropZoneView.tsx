@@ -26,6 +26,8 @@ interface DropZoneViewProps {
   isHost: boolean;
   /** Return user to create/join (Join the Fabric) after Convex `leaveRoom`. */
   onLeaveRoom: () => void;
+  /** Fill the viewport (no landing scroll); inner content scrolls if needed. */
+  fullPage?: boolean;
 }
 
 type UploadRow = {
@@ -40,6 +42,7 @@ export function DropZoneView({
   roomCode,
   isHost,
   onLeaveRoom,
+  fullPage = false,
 }: DropZoneViewProps) {
   const code = roomCode.trim().toUpperCase();
   const { sessionId } = useSession();
@@ -178,16 +181,23 @@ export function DropZoneView({
   );
   const showLogs = serverFilesVisible.length > 0 || uploadRows.length > 0;
 
+  const fullPageScroll =
+    "flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-y-contain px-6 py-8 md:px-12";
+
   if (loadingRoom) {
-    return (
-      <div className="flex min-h-[200px] w-full max-w-2xl items-center justify-center">
+    const inner = (
+      <div className="flex min-h-[200px] w-full max-w-2xl flex-1 items-center justify-center">
         <p className="text-neutral-400">Loading room…</p>
       </div>
     );
+    if (fullPage) {
+      return <div className={fullPageScroll}>{inner}</div>;
+    }
+    return inner;
   }
 
   if (invalidRoom) {
-    return (
+    const inner = (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
         <p className="text-neutral-400">
           This room has ended or is unavailable. If the host went offline, the
@@ -203,9 +213,17 @@ export function DropZoneView({
         </Button>
       </div>
     );
+    if (fullPage) {
+      return (
+        <div className={`${fullPageScroll} items-center justify-center`}>
+          {inner}
+        </div>
+      );
+    }
+    return inner;
   }
 
-  return (
+  const roomBody = (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
@@ -365,8 +383,8 @@ export function DropZoneView({
                     />
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {f.url ? (
+                {f.url ? (
+                  <div className="flex shrink-0 items-center">
                     <button
                       type="button"
                       title="Download to your device"
@@ -396,9 +414,8 @@ export function DropZoneView({
                         <Download className="h-4 w-4" aria-hidden />
                       )}
                     </button>
-                  ) : null}
-                  <CheckCircle2 className="h-5 w-5 text-[#4F8EF7]" aria-hidden />
-                </div>
+                  </div>
+                ) : null}
               </Card>
             ))}
           </div>
@@ -406,4 +423,9 @@ export function DropZoneView({
       ) : null}
     </motion.div>
   );
+
+  if (fullPage) {
+    return <div className={fullPageScroll}>{roomBody}</div>;
+  }
+  return roomBody;
 }
