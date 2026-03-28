@@ -2,7 +2,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { DropZoneView } from "@/components/views/DropZoneView";
 import { LandingView } from "@/components/views/LandingView";
 import { RoomLogicView } from "@/components/views/RoomLogicView";
@@ -20,6 +20,8 @@ export default function Home() {
     code: string;
     isHost: boolean;
   } | null>(null);
+  /** Bump after leaving a room so RoomLogicView remounts with a clean create/join state. */
+  const [lobbyKey, setLobbyKey] = useState(0);
 
   const handleScrollToApp = () => {
     document.getElementById("app")?.scrollIntoView({ behavior: "smooth" });
@@ -33,6 +35,15 @@ export default function Home() {
     }, 100);
   };
 
+  const handleLeaveRoom = useCallback(() => {
+    setRoomData(null);
+    setAppState("room-logic");
+    setLobbyKey((k) => k + 1);
+    requestAnimationFrame(() => {
+      document.getElementById("app")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }, []);
+
   return (
     <main className="relative flex min-h-[200vh] w-full flex-col bg-[#0a0a0a]">
       <CanvasBackground />
@@ -44,13 +55,17 @@ export default function Home() {
         >
           <AnimatePresence mode="wait">
             {appState === "room-logic" && (
-              <RoomLogicView key="room-logic" onJoinRoom={handleJoinRoom} />
+              <RoomLogicView
+                key={`room-logic-${lobbyKey}`}
+                onJoinRoom={handleJoinRoom}
+              />
             )}
             {appState === "drop-zone" && roomData && (
               <DropZoneView
-                key="drop-zone"
+                key={`drop-zone-${roomData.code}`}
                 roomCode={roomData.code}
                 isHost={roomData.isHost}
+                onLeaveRoom={handleLeaveRoom}
               />
             )}
           </AnimatePresence>

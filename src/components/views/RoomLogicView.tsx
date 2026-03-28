@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
+import { useCloseRoomWhenCreatorOffline } from "@/hooks/useCloseRoomWhenCreatorOffline";
 import { useSession } from "@/hooks/useSession";
 
 interface RoomLogicViewProps {
@@ -23,6 +24,16 @@ export function RoomLogicView({ onJoinRoom }: RoomLogicViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  useCloseRoomWhenCreatorOffline(
+    createdCode,
+    sessionId,
+    Boolean(createdCode && sessionId),
+    () => {
+      setCreatedCode(null);
+      setCreateError(null);
+    },
+  );
 
   const [joinCode, setJoinCode] = useState("");
   const [joinAttempt, setJoinAttempt] = useState<string | null>(null);

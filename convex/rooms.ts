@@ -160,6 +160,42 @@ export const generateUploadUrl = mutation({
   },
 });
 
+export const closeRoomAsCreator = mutation({
+  args: {
+    code: v.string(),
+    creatorSessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const normalized = args.code.trim().toUpperCase();
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_code", (q) => q.eq("code", normalized))
+      .unique();
+    if (!room) return;
+    if (room.creatorId !== args.creatorSessionId) {
+      throw new Error("Only the room creator can close this room");
+    }
+
+    for (const f of room.files) {
+      try {
+        await ctx.storage.delete(f.storageId);
+      } catch {
+        /* file may already be removed */
+      }
+    }
+
+    const sessions = await ctx.db
+      .query("roomSessions")
+      .withIndex("by_code", (q) => q.eq("code", normalized))
+      .collect();
+    for (const s of sessions) {
+      await ctx.db.delete(s._id);
+    }
+
+    await ctx.db.delete(room._id);
+  },
+});
+
 export const addFileToRoom = mutation({
   args: {
     code: v.string(),

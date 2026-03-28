@@ -4,20 +4,28 @@ import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
+  Download,
   FileText,
+  Loader2,
+  LogOut,
   UploadCloud,
   User,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "convex/_generated/api";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useCloseRoomWhenCreatorOffline } from "@/hooks/useCloseRoomWhenCreatorOffline";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useSession } from "@/hooks/useSession";
+import { downloadFileFromUrl } from "@/lib/downloadFileFromUrl";
 import { formatBytes } from "@/lib/utils";
 
 interface DropZoneViewProps {
   roomCode: string;
   isHost: boolean;
+  /** Return user to create/join (Join the Fabric) after Convex `leaveRoom`. */
+  onLeaveRoom: () => void;
 }
 
 type UploadRow = {
@@ -28,7 +36,11 @@ type UploadRow = {
   status: "uploading" | "done";
 };
 
-export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
+export function DropZoneView({
+  roomCode,
+  isHost,
+  onLeaveRoom,
+}: DropZoneViewProps) {
   const code = roomCode.trim().toUpperCase();
   const { sessionId } = useSession();
   const enterRoom = useMutation(api.rooms.enterRoom);
@@ -50,8 +62,20 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
 
   const [isDragging, setIsDragging] = useState(false);
   const [uploadRows, setUploadRows] = useState<UploadRow[]>([]);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const leaveInFlight = useRef(false);
+  const [downloadingStorageId, setDownloadingStorageId] = useState<
+    string | null
+  >(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const { uploadFile, isUploading, error, clearError } = useFileUpload(code);
+
+  useCloseRoomWhenCreatorOffline(
+    code,
+    sessionId,
+    Boolean(isHost && sessionId && code.length >= 6),
+  );
 
   const handleFiles = useCallback(
     async (list: FileList | File[]) => {
@@ -117,6 +141,32 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
     [handleFiles],
   );
 
+  const handleLeaveRoom = useCallback(async () => {
+    if (!sessionId || leaveInFlight.current) return;
+    leaveInFlight.current = true;
+    setIsLeaving(true);
+    try {
+      await leaveRoom({ code, sessionId });
+    } catch {
+      /* still return to lobby so the user is not stuck */
+    } finally {
+      setIsLeaving(false);
+      leaveInFlight.current = false;
+      onLeaveRoom();
+    }
+  }, [code, sessionId, leaveRoom, onLeaveRoom]);
+
+  const handleBackToLobby = useCallback(async () => {
+    if (sessionId) {
+      try {
+        await leaveRoom({ code, sessionId });
+      } catch {
+        /* room may already be gone */
+      }
+    }
+    onLeaveRoom();
+  }, [code, sessionId, leaveRoom, onLeaveRoom]);
+
   const loadingRoom = room === undefined && code.length >= 6;
   const invalidRoom = room === null && code.length >= 6;
   const peopleCount = room?.peopleCount ?? 0;
@@ -138,8 +188,19 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
 
   if (invalidRoom) {
     return (
-      <div className="mx-auto w-full max-w-2xl space-y-4 text-center">
-        <p className="text-neutral-400">This room does not exist or has expired.</p>
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
+        <p className="text-neutral-400">
+          This room has ended or is unavailable. If the host went offline, the
+          room was closed for everyone.
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-full px-6"
+          onClick={() => void handleBackToLobby()}
+        >
+          Back to create or join
+        </Button>
       </div>
     );
   }
@@ -152,8 +213,8 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
       transition={{ type: "spring", stiffness: 90, damping: 20 }}
       className="mx-auto w-full max-w-2xl space-y-6"
     >
-      <div className="flex items-center justify-between px-4">
-        <div>
+      <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 text-left">
           <h2 className="font-serif text-xl tracking-wide text-white">
             Room{" "}
             <span className="ml-2 font-mono text-[#4F8EF7]">{roomCode}</span>
@@ -162,12 +223,29 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
             {isHost ? "HOST" : "GUEST"}
           </span>
         </div>
-        <div className="flex items-center space-x-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 shadow-lg backdrop-blur-md">
-          <div className="h-2 w-2 animate-pulse rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
-          <User className="h-4 w-4 text-neutral-300" />
-          <span className="text-sm font-medium text-neutral-300">
-            {peopleCount} connected
-          </span>
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!sessionId || isLeaving}
+            className="h-9 justify-center gap-2 rounded-lg border border-white/10 text-neutral-300 hover:border-white/20 hover:text-white"
+            aria-label="Leave room and return to create or join"
+            onClick={() => void handleLeaveRoom()}
+          >
+            {isLeaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <LogOut className="h-4 w-4" aria-hidden />
+            )}
+            Leave room
+          </Button>
+          <div className="flex items-center justify-center space-x-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 shadow-lg backdrop-blur-md sm:justify-start">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
+            <User className="h-4 w-4 text-neutral-300" />
+            <span className="text-sm font-medium text-neutral-300">
+              {peopleCount} connected
+            </span>
+          </div>
         </div>
       </div>
 
@@ -218,6 +296,9 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
         ) : null}
         {error ? (
           <p className="mt-3 text-sm text-red-400">{error}</p>
+        ) : null}
+        {downloadError ? (
+          <p className="mt-3 text-sm text-red-400">{downloadError}</p>
         ) : null}
       </div>
 
@@ -284,7 +365,40 @@ export function DropZoneView({ roomCode, isHost }: DropZoneViewProps) {
                     />
                   </div>
                 </div>
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-[#4F8EF7]" />
+                <div className="flex shrink-0 items-center gap-1">
+                  {f.url ? (
+                    <button
+                      type="button"
+                      title="Download to your device"
+                      aria-label={`Download ${f.name}`}
+                      aria-busy={downloadingStorageId === f.storageId}
+                      disabled={downloadingStorageId === f.storageId}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-neutral-400 transition-colors hover:border-[#4F8EF7]/40 hover:text-[#4F8EF7] disabled:pointer-events-none disabled:opacity-50"
+                      onClick={() => {
+                        setDownloadError(null);
+                        void (async () => {
+                          setDownloadingStorageId(f.storageId);
+                          try {
+                            await downloadFileFromUrl(f.url!, f.name);
+                          } catch {
+                            setDownloadError(
+                              "Could not download the file. Try again.",
+                            );
+                          } finally {
+                            setDownloadingStorageId(null);
+                          }
+                        })();
+                      }}
+                    >
+                      {downloadingStorageId === f.storageId ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Download className="h-4 w-4" aria-hidden />
+                      )}
+                    </button>
+                  ) : null}
+                  <CheckCircle2 className="h-5 w-5 text-[#4F8EF7]" aria-hidden />
+                </div>
               </Card>
             ))}
           </div>

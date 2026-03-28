@@ -2,14 +2,16 @@
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { type ReactNode, useMemo } from "react";
+import { publicEnv } from "@/lib/publicEnv";
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => {
-    const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+    const url = publicEnv.convexUrl;
     if (!url) {
-      throw new Error(
-        "NEXT_PUBLIC_CONVEX_URL is not set. Add your Convex deployment URL to .env.local.",
-      );
+      const hint = publicEnv.isProduction
+        ? "Set NEXT_PUBLIC_CONVEX_URL in your hosting provider (e.g. Vercel) to your Convex deployment URL."
+        : "Add NEXT_PUBLIC_CONVEX_URL to .env.local.";
+      throw new Error(`NEXT_PUBLIC_CONVEX_URL is not set. ${hint}`);
     }
     return new ConvexReactClient(url);
   }, []);

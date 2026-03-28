@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Orbit Drop
 
-## Getting Started
+Next.js file-sharing rooms backed by [Convex](https://convex.dev). Anyone with the repo can run it locally after Node is installed and Convex is linked.
 
-First, run the development server:
+## Prerequisites
+
+- **Node.js 20+** (LTS recommended)
+- **npm** (ships with Node; pnpm/yarn work if you prefer)
+- A **Convex** account (sign up at [convex.dev](https://convex.dev))
+
+## Clone and install
+
+```bash
+git clone <repository-url>
+cd <folder-you-cloned-into>
+npm install
+```
+
+## Environment variables
+
+1. Copy the example env file and fill in the URL:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Set **`NEXT_PUBLIC_CONVEX_URL`** to your Convex deployment URL (must start with `https://`). You get this URL after running Convex (next section) or from the Convex dashboard: **Project → Settings → Deployment URL**.
+
+## Run the app (two terminals)
+
+Convex must be running while you develop so functions and the database stay in sync.
+
+**Terminal 1 — Convex**
+
+```bash
+npx convex dev
+```
+
+The first time, this will open a browser to log in and will create or link a Convex project for this repo. Leave this process running.
+
+**Terminal 2 — Next.js**
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Useful scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Purpose |
+|--------|---------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build |
+| `npm run start` | Run production build locally |
+| `npm run lint` | ESLint |
+| `npx convex dev` | Convex dev sync (push functions, run queries) |
+| `npm run convex:codegen` | Regenerate Convex `convex/_generated` types |
 
-## Learn More
+## Deploying
 
-To learn more about Next.js, take a look at the following resources:
+You deploy **two pieces**: the Convex backend (functions + database + file storage) and the Next.js frontend (UI + `/api/storage-download` for in-app file downloads).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Deploy Convex (production)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+From the project root, with the same Convex project you use for dev (or a dedicated prod project):
 
-## Deploy on Vercel
+```bash
+npx convex deploy
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Targets your **production** deployment (Convex CLI will prompt if you have both dev and prod).
+- Pushes everything under `convex/` (schema, queries, mutations, storage).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+In the [Convex dashboard](https://dashboard.convex.dev), open the project → **Settings** (or **Deployments**) and copy the **production deployment URL** — it looks like `https://YOUR_DEPLOYMENT.convex.cloud`. You will use this as `NEXT_PUBLIC_CONVEX_URL` for the hosted Next.js app.
+
+### 2. Deploy Next.js (recommended: Vercel)
+
+1. Push your code to GitHub (or GitLab / Bitbucket).
+2. In [Vercel](https://vercel.com), **Add New Project** → import that repository.
+3. Framework preset: **Next.js** (default). Build command: `npm run build`, output: default.
+4. Under **Environment Variables**, add:
+   - **`NEXT_PUBLIC_CONVEX_URL`** = your **production** Convex URL from step 1 (must match that deployment so queries and the download proxy stay allowed).
+5. Deploy. Vercel will run `npm install` and `next build` on each push to the connected branch.
+
+Other hosts (Netlify, Railway, a VPS with Node) work too: run `npm run build` then `npm run start`, and set the same env var in their UI.
+
+### 3. After deploy
+
+- Open your Vercel URL and smoke-test: create/join a room, upload a file, download it.
+- If downloads fail with errors, confirm **`NEXT_PUBLIC_CONVEX_URL`** on the host exactly matches the Convex deployment that serves those file URLs (same hostname as in the signed links).
+
+### 4. Ongoing changes
+
+- **Backend changes:** `npx convex deploy` whenever you change `convex/`.
+- **Frontend changes:** push to Git; Vercel (or your CI) rebuilds automatically if connected to the repo.
+
+## Troubleshooting
+
+- **`NEXT_PUBLIC_CONVEX_URL is not set`:** Add it to `.env.local` and restart `npm run dev`.
+- **Convex errors on first run:** Run `npx convex dev` once and complete login / project linking before relying on the UI.
