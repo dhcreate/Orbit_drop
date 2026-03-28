@@ -28,30 +28,22 @@ export default function CanvasBackground() {
     let height = window.innerHeight;
     canvas.width = width;
     canvas.height = height;
-
-    const spacingX = 40;
-    const spacingY = spacingX * (Math.sqrt(3) / 2);
     let dots: Dot[] = [];
 
     const initGrid = () => {
       dots = [];
-      const spacingX = 24; // Lower value = much denser beehive grid
+      const spacingX = 24;
       const spacingY = spacingX * (Math.sqrt(3) / 2);
       const cols = Math.ceil(width / spacingX) + 1;
       const rows = Math.ceil(height / spacingY) + 1;
 
       for (let i = -1; i <= rows; i++) {
         for (let j = -1; j <= cols; j++) {
-          const offsetX = (i % 2 === 0) ? 0 : spacingX / 2;
-          const baseRadius = 1.0; 
-
-          // Very slight jitter to keep it organic but structurally a beehive
+          const offsetX = i % 2 === 0 ? 0 : spacingX / 2;
           const jitterX = (Math.random() - 0.5) * 2 * (spacingX * 0.05);
-          const jitterY = (Math.random() - 0.5) * 2 * (spacingY * 0.05);
-
+          const jitterY = (Math.random() - 0.5) * 2 * (spacingX * 0.05);
           const originX = j * spacingX + offsetX + jitterX;
           const originY = i * spacingY + jitterY;
-
           dots.push({
             x: originX,
             y: originY,
@@ -59,7 +51,7 @@ export default function CanvasBackground() {
             originY,
             vx: 0,
             vy: 0,
-            baseRadius,
+            baseRadius: 1.0,
             jitterX,
             jitterY,
           });
@@ -94,7 +86,6 @@ export default function CanvasBackground() {
     let animationId: number;
 
     const render = () => {
-      // Clear background with deep space monochromatic
       ctx.fillStyle = "#0a0a0a";
       ctx.fillRect(0, 0, width, height);
 
@@ -103,71 +94,56 @@ export default function CanvasBackground() {
       const interactionRadius = 250;
 
       for (let i = 0; i < dots.length; i++) {
-        const dot = dots[i];
-
+        const dot = dots[i]!;
         const dx = mx - dot.x;
         const dy = my - dot.y;
         const distToMouse = Math.sqrt(dx * dx + dy * dy);
 
-        // Repulsion physics
         let tx = dot.originX;
         let ty = dot.originY;
 
         if (distToMouse < interactionRadius) {
-          const force = (interactionRadius - distToMouse) / interactionRadius;
+          const force =
+            (interactionRadius - distToMouse) / interactionRadius;
           const angle = Math.atan2(dy, dx);
-          const pushDist = force * 60; // Max push distance
-          
+          const pushDist = force * 60;
           tx = dot.originX - Math.cos(angle) * pushDist;
           ty = dot.originY - Math.sin(angle) * pushDist;
         }
 
-        // Spring physics: acceleration towards target
         const stiffness = 0.08;
         const damping = 0.75;
-        
         const ax = (tx - dot.x) * stiffness;
         const ay = (ty - dot.y) * stiffness;
-        
         dot.vx = (dot.vx + ax) * damping;
         dot.vy = (dot.vy + ay) * damping;
-        
         dot.x += dot.vx;
         dot.y += dot.vy;
 
-        // Visuals based on distance to mouse
         const drawDist = Math.sqrt((mx - dot.x) ** 2 + (my - dot.y) ** 2);
-        let opacity = 0.2; // Increased base visibility
+        let opacity = 0.2;
         let scale = 1;
-        let color = "rgba(160, 160, 160, "; // Grey color
+        let color = "rgba(160, 160, 160, ";
 
         if (drawDist < interactionRadius) {
-          const intensity = 1 - (drawDist / interactionRadius);
-          // Scale up to 2.5x
+          const intensity = 1 - drawDist / interactionRadius;
           scale = 1 + intensity * 1.5;
-          // Opacity up
           opacity = 0.2 + intensity * 0.5;
-          // Keep it grey for active dots too, or maybe blue? The user said "the colour should be grey"
-          color = `rgba(160, 160, 160, `;
+          color = "rgba(160, 160, 160, ";
         }
 
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, dot.baseRadius * scale, 0, Math.PI * 2);
-        
         ctx.fillStyle = `${color}${opacity})`;
 
-        // Glow effect
         if (drawDist < interactionRadius) {
           ctx.shadowBlur = 12 * (1 - drawDist / interactionRadius);
-          // Soft grey glow
           ctx.shadowColor = `rgba(160, 160, 160, ${opacity * 0.5})`;
         } else {
           ctx.shadowBlur = 0;
         }
-
         ctx.fill();
       }
-
       animationId = requestAnimationFrame(render);
     };
 
@@ -184,7 +160,7 @@ export default function CanvasBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0"
+      className="pointer-events-none fixed inset-0 z-0"
     />
   );
 }
