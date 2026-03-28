@@ -51,7 +51,7 @@ export default function CanvasBackground() {
             originY,
             vx: 0,
             vy: 0,
-            baseRadius: 1.0,
+            baseRadius: 1,
             jitterX,
             jitterY,
           });
@@ -121,15 +121,16 @@ export default function CanvasBackground() {
         dot.y += dot.vy;
 
         const drawDist = Math.sqrt((mx - dot.x) ** 2 + (my - dot.y) ** 2);
-        let opacity = 0.2;
+        const baseOpacity = 0.185;
+        let opacity = baseOpacity;
         let scale = 1;
-        let color = "rgba(160, 160, 160, ";
+        let color = "rgba(140, 142, 152, ";
 
         if (drawDist < interactionRadius) {
           const intensity = 1 - drawDist / interactionRadius;
           scale = 1 + intensity * 1.5;
-          opacity = 0.2 + intensity * 0.5;
-          color = "rgba(160, 160, 160, ";
+          opacity = baseOpacity + intensity * 0.2;
+          color = "rgba(150, 154, 168, ";
         }
 
         ctx.beginPath();

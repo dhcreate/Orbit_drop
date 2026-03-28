@@ -35,17 +35,21 @@ export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
     }
   };
 
+  const inactiveScale = 0.56;
+  /** Extra horizontal push so the small card sits farther from the focused one (was ±80px). */
+  const inactiveTranslateX = 118;
+
   const getCard1Transform = () => {
     if (activeState === "create")
       return "rotate(-2deg) translateX(-30px) translateY(30px) scale(1.3)";
     if (activeState === "join")
-      return "rotate(-32deg) translateX(-80px) scale(0.8)";
+      return `rotate(-32deg) translateX(-${inactiveTranslateX}px) scale(${inactiveScale})`;
     return "rotate(-28deg) translateX(-70px)";
   };
 
   const getCard2Transform = () => {
     if (activeState === "create")
-      return "rotate(32deg) translateX(80px) scale(0.8)";
+      return `rotate(32deg) translateX(${inactiveTranslateX}px) scale(${inactiveScale})`;
     if (activeState === "join")
       return "rotate(2deg) translateX(30px) translateY(30px) scale(1.3)";
     return "rotate(22deg) translateX(70px)";
@@ -54,9 +58,11 @@ export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
   const cardStyle: React.CSSProperties = {
     transition: "transform 0.8s cubic-bezier(0.34, 1.3, 0.64, 1)",
     transformOrigin: "50% 100%",
-    WebkitBackdropFilter: "blur(10px)",
-    backdropFilter: "blur(10px)",
   };
+
+  /** Light blur; rim visible but softer than the heavy pass. */
+  const glassSurfaceClass =
+    "border border-white/[0.18] bg-[rgba(8,10,14,0.22)] shadow-[0_16px_48px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-sm backdrop-saturate-125";
 
   const pid1 = `v-lines-a-${patternId}`;
 
@@ -65,15 +71,14 @@ export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
       <div
         data-card="true"
         onClick={(e) => handleCardClick(e, "create")}
-        className="absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px]"
+        className={`absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
         style={{
           ...cardStyle,
           zIndex: 1,
           transform: getCard1Transform(),
-          background: "rgba(30,30,30,0.9)",
         }}
       >
-        <div className="pointer-events-none absolute left-0 top-0 h-[62%] w-full overflow-hidden border-b border-white/5 opacity-80">
+        <div className="pointer-events-none absolute left-0 top-0 h-[62%] w-full overflow-hidden border-b border-white/15 opacity-42">
           <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern
@@ -157,22 +162,21 @@ export function OrbitDropCards({ actionIntent }: OrbitDropCardsProps) {
       <div
         data-card="true"
         onClick={(e) => handleCardClick(e, "join")}
-        className="absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px]"
+        className={`absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
         style={{
           ...cardStyle,
           zIndex: 2,
           transform: getCard2Transform(),
-          background: "rgba(30,30,30,0.9)",
         }}
       >
-        <div className="pointer-events-none absolute left-0 top-0 h-[62%] w-full overflow-hidden border-b border-white/5 opacity-80">
+        <div className="pointer-events-none absolute left-0 top-0 h-[62%] w-full overflow-hidden border-b border-white/15 opacity-42">
           <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
             <rect x="10%" y="15%" width="80%" height="8%" rx="2" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
             <rect x="10%" y="30%" width="38%" height="30%" rx="3" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
             <rect x="52%" y="30%" width="38%" height="30%" rx="3" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
             <rect x="10%" y="68%" width="80%" height="6%" rx="2" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
             <rect x="10%" y="78%" width="50%" height="6%" rx="2" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-            <circle cx="50%" cy="45%" r="18" fill="#0a0a0a" stroke="#4F8EF7" strokeWidth="1.5" />
+            <circle cx="50%" cy="45%" r="18" fill="rgba(10,10,14,0.35)" stroke="#4F8EF7" strokeWidth="1.5" />
             <path
               d="M112 85 l5 5 l10 -10"
               fill="none"
