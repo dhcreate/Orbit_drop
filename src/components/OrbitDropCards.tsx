@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useState } from "react";
 
 interface OrbitDropCardsProps {
   /** Fired on second click on the Create Room card (after expand). */
@@ -9,6 +9,52 @@ interface OrbitDropCardsProps {
   onSecondClickJoin?: () => void;
 }
 
+/** Laptop / tablet: match original fixed layout. Phones only: smaller cards. */
+function getPhoneLayout() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 640;
+}
+
+type CardLayout = {
+  width: string;
+  height: string;
+  bottom: string;
+  marginLeft: string;
+};
+
+function getCardLayout(): CardLayout {
+  if (typeof window === "undefined") {
+    return {
+      width: "240px",
+      height: "320px",
+      bottom: "60px",
+      marginLeft: "-120px",
+    };
+  }
+  if (window.innerWidth < 640) {
+    return {
+      width: "170px",
+      height: "230px",
+      bottom: "40px",
+      marginLeft: "-85px",
+    };
+  }
+  return {
+    width: "240px",
+    height: "320px",
+    bottom: "60px",
+    marginLeft: "-120px",
+  };
+}
+
+/** Matches `getCardLayout()` when `window` is undefined — SSR and first client render must use this (avoids hydration mismatch). */
+const INITIAL_CARD_LAYOUT: CardLayout = {
+  width: "240px",
+  height: "320px",
+  bottom: "60px",
+  marginLeft: "-120px",
+};
+
 export function OrbitDropCards({
   onSecondClickCreate,
   onSecondClickJoin,
@@ -16,6 +62,8 @@ export function OrbitDropCards({
   const [activeState, setActiveState] = useState<null | "create" | "join">(
     null,
   );
+  const [phoneLayout, setPhoneLayout] = useState(false);
+  const [cardLayout, setCardLayout] = useState<CardLayout>(INITIAL_CARD_LAYOUT);
   const patternId = useId().replace(/:/g, "");
 
   useEffect(() => {
@@ -27,6 +75,16 @@ export function OrbitDropCards({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      setPhoneLayout(getPhoneLayout());
+      setCardLayout(getCardLayout());
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   const handleCardClick = (
@@ -47,6 +105,13 @@ export function OrbitDropCards({
   const inactiveTranslateX = 118;
 
   const getCard1Transform = () => {
+    if (phoneLayout) {
+      if (activeState === "create")
+        return "rotate(-2deg) translateX(-20px) translateY(20px) scale(1.2)";
+      if (activeState === "join")
+        return "rotate(-25deg) translateX(-60px) scale(0.8)";
+      return "rotate(-20deg) translateX(-50px)";
+    }
     if (activeState === "create")
       return "rotate(-2deg) translateX(-30px) translateY(30px) scale(1.3)";
     if (activeState === "join")
@@ -55,6 +120,13 @@ export function OrbitDropCards({
   };
 
   const getCard2Transform = () => {
+    if (phoneLayout) {
+      if (activeState === "create")
+        return "rotate(25deg) translateX(60px) scale(0.8)";
+      if (activeState === "join")
+        return "rotate(2deg) translateX(20px) translateY(20px) scale(1.2)";
+      return "rotate(16deg) translateX(50px)";
+    }
     if (activeState === "create")
       return `rotate(32deg) translateX(${inactiveTranslateX}px) scale(${inactiveScale})`;
     if (activeState === "join")
@@ -74,14 +146,18 @@ export function OrbitDropCards({
   const pid1 = `v-lines-a-${patternId}`;
 
   return (
-    <div className="relative mx-auto -mt-8 flex h-[460px] w-full justify-center">
+    <div className="relative mx-auto flex h-[320px] w-full justify-center -mt-4 sm:h-[460px] sm:-mt-8">
       <div
         data-card="true"
         onClick={(e) => handleCardClick(e, "create")}
-        className={`absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
+        className={`absolute left-1/2 flex cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
         style={{
           ...cardStyle,
           zIndex: 1,
+          width: cardLayout.width,
+          height: cardLayout.height,
+          bottom: cardLayout.bottom,
+          marginLeft: cardLayout.marginLeft,
           transform: getCard1Transform(),
         }}
       >
@@ -143,18 +219,18 @@ export function OrbitDropCards({
             />
           </svg>
         </div>
-        <div className="relative z-10 flex h-[38%] flex-col justify-end px-[22px] pb-[24px] pointer-events-none">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-white opacity-65">
+        <div className="relative z-10 flex h-[38%] flex-col justify-end px-[22px] pb-[24px] pointer-events-none max-sm:px-4 max-sm:pb-4">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-white opacity-65 max-sm:text-[9px]">
             Orbit Drop
           </div>
           <div
-            className="mb-2 mt-1 text-[23px] font-medium italic leading-[1.2] text-white"
+            className="mb-2 mt-1 text-[23px] font-medium italic leading-[1.2] text-white max-sm:text-[18px]"
             style={{ fontFamily: "var(--font-newsreader), serif" }}
           >
             Create Room
           </div>
           <div
-            className={`text-[12px] leading-[1.55] text-[#ccc] transition-all duration-500 ease-in-out ${
+            className={`text-[12px] leading-[1.55] text-[#ccc] transition-all duration-500 ease-in-out max-sm:text-[11px] ${
               activeState === "create"
                 ? "mt-2 max-h-[80px] opacity-75"
                 : "max-h-0 overflow-hidden opacity-0"
@@ -169,10 +245,14 @@ export function OrbitDropCards({
       <div
         data-card="true"
         onClick={(e) => handleCardClick(e, "join")}
-        className={`absolute bottom-[60px] left-1/2 -ml-[120px] flex h-[320px] w-[240px] cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
+        className={`absolute left-1/2 flex cursor-pointer select-none flex-col justify-end overflow-hidden rounded-[28px] ${glassSurfaceClass}`}
         style={{
           ...cardStyle,
           zIndex: 2,
+          width: cardLayout.width,
+          height: cardLayout.height,
+          bottom: cardLayout.bottom,
+          marginLeft: cardLayout.marginLeft,
           transform: getCard2Transform(),
         }}
       >
@@ -194,18 +274,18 @@ export function OrbitDropCards({
             />
           </svg>
         </div>
-        <div className="relative z-10 flex h-[38%] flex-col justify-end px-[22px] pb-[24px] pointer-events-none">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-white opacity-65">
+        <div className="relative z-10 flex h-[38%] flex-col justify-end px-[22px] pb-[24px] pointer-events-none max-sm:px-4 max-sm:pb-4">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-white opacity-65 max-sm:text-[9px]">
             Orbit Drop
           </div>
           <div
-            className="mb-2 mt-1 text-[23px] font-medium italic leading-[1.2] text-white"
+            className="mb-2 mt-1 text-[23px] font-medium italic leading-[1.2] text-white max-sm:text-[18px]"
             style={{ fontFamily: "var(--font-newsreader), serif" }}
           >
             Join Room
           </div>
           <div
-            className={`text-[12px] leading-[1.55] text-[#ccc] transition-all duration-500 ease-in-out ${
+            className={`text-[12px] leading-[1.55] text-[#ccc] transition-all duration-500 ease-in-out max-sm:text-[11px] ${
               activeState === "join"
                 ? "mt-2 max-h-[80px] opacity-75"
                 : "max-h-0 overflow-hidden opacity-0"

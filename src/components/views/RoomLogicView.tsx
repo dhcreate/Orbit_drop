@@ -164,7 +164,7 @@ export function RoomLogicView({
         <Button
           onClick={() => void handleCreate()}
           disabled={isCreating || !sessionId}
-          className="h-14 w-full text-lg"
+          className="h-14 w-full text-lg max-sm:h-12 max-sm:text-base"
         >
           {isCreating || !sessionId ? (
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -176,14 +176,14 @@ export function RoomLogicView({
           <label className="text-sm font-medium text-neutral-400">
             Your Room Code
           </label>
-          <div className="flex w-full justify-center rounded-xl border border-[#4F8EF7]/30 bg-black/50 py-6 shadow-[0_0_30px_rgba(79,142,247,0.15)]">
-            <span className="font-mono text-4xl tracking-[0.2em] text-[#4F8EF7] drop-shadow-[0_0_12px_rgba(79,142,247,0.8)]">
+          <div className="flex w-full justify-center rounded-xl border border-[#4F8EF7]/30 bg-black/50 py-6 shadow-[0_0_30px_rgba(79,142,247,0.15)] max-sm:py-4">
+            <span className="font-mono text-4xl tracking-[0.2em] text-[#4F8EF7] drop-shadow-[0_0_12px_rgba(79,142,247,0.8)] max-sm:text-2xl max-sm:tracking-[0.12em]">
               {createdCode}
             </span>
           </div>
           <Button
             onClick={() => onJoinRoom(createdCode, true)}
-            className="mt-4 h-14 w-full"
+            className="mt-4 h-14 w-full max-sm:h-12"
           >
             Enter Room
           </Button>
@@ -216,7 +216,7 @@ export function RoomLogicView({
           }}
           maxLength={6}
           placeholder="XXXXXX"
-          className="h-16 text-center font-mono text-2xl uppercase tracking-[0.2em]"
+          className="h-16 text-center font-mono text-2xl uppercase tracking-[0.2em] max-sm:h-14 max-sm:text-xl max-sm:tracking-[0.12em]"
           disabled={isJoining}
         />
         {joinError ? (
@@ -228,7 +228,7 @@ export function RoomLogicView({
       <Button
         type="submit"
         disabled={joinCode.length !== 6 || isJoining || !sessionId}
-        className="mt-6 h-14 w-full"
+        className="mt-6 h-14 w-full max-sm:h-12 max-sm:text-base"
       >
         {isJoining || !sessionId ? (
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -249,7 +249,7 @@ export function RoomLogicView({
       return (
         <>
           <div className="space-y-2 text-center">
-            <h2 className="font-serif text-2xl text-white">Join the Fabric</h2>
+            <h2 className="font-serif text-2xl text-white max-sm:text-xl">Join the Fabric</h2>
             <p className="text-sm text-neutral-400">
               Create a secure drop or enter a code.
             </p>
@@ -287,7 +287,7 @@ export function RoomLogicView({
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div className="min-w-0 flex-1 space-y-2 pr-6 text-center">
-                <h2 className="font-serif text-2xl text-white">
+                <h2 className="font-serif text-2xl text-white max-sm:text-xl">
                   Join the Fabric
                 </h2>
                 <p className="text-sm text-neutral-400">
@@ -297,7 +297,7 @@ export function RoomLogicView({
             </div>
           ) : (
             <div className="space-y-2 text-center">
-              <h2 className="font-serif text-2xl text-white">Join the Fabric</h2>
+              <h2 className="font-serif text-2xl text-white max-sm:text-xl">Join the Fabric</h2>
               <p className="text-sm text-neutral-400">
                 Create a secure drop or enter a code.
               </p>
@@ -325,7 +325,7 @@ export function RoomLogicView({
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div className="min-w-0 flex-1 space-y-2 pr-6 text-center">
-                <h2 className="font-serif text-2xl text-white">
+                <h2 className="font-serif text-2xl text-white max-sm:text-xl">
                   Join the Fabric
                 </h2>
                 <p className="text-sm text-neutral-400">
@@ -335,7 +335,7 @@ export function RoomLogicView({
             </div>
           ) : (
             <div className="space-y-2 text-center">
-              <h2 className="font-serif text-2xl text-white">Join the Fabric</h2>
+              <h2 className="font-serif text-2xl text-white max-sm:text-xl">Join the Fabric</h2>
               <p className="text-sm text-neutral-400">
                 Create a secure drop or enter a code.
               </p>
@@ -358,7 +358,7 @@ export function RoomLogicView({
         {lobbyOverlay ? (
           <motion.div
             role="presentation"
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm max-sm:p-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -372,7 +372,7 @@ export function RoomLogicView({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 100, damping: 20 }}
-              className="relative w-full max-w-md"
+              className="relative w-full max-w-md max-sm:max-w-[min(100%,calc(100vw-1.5rem))]"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -383,7 +383,7 @@ export function RoomLogicView({
               >
                 <X className="h-4 w-4" />
               </button>
-              <Card className="flex flex-col space-y-8 p-8 pb-10 pr-12 pt-12">
+              <Card className="flex flex-col space-y-8 p-8 pb-10 pr-12 pt-12 max-sm:space-y-6 max-sm:p-5 max-sm:pb-6 max-sm:pr-10 max-sm:pt-10">
                 {renderOverlayInner()}
               </Card>
             </motion.div>

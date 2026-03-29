@@ -52,7 +52,7 @@ export function LandingView({ lobby }: LandingViewProps) {
   };
 
   return (
-    <div className="relative z-10 flex min-h-screen w-full flex-col px-6 pt-6 selection:bg-[#4F8EF7]/30 md:px-12">
+    <div className="relative z-10 flex min-h-screen w-full flex-col px-6 pt-6 selection:bg-[#4F8EF7]/30 max-sm:px-4 max-sm:pt-4 md:px-12">
       <motion.header
         variants={itemVariants}
         initial="hidden"
@@ -67,7 +67,7 @@ export function LandingView({ lobby }: LandingViewProps) {
             drop
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2 md:gap-3">
+        <div className="hidden shrink-0 items-center gap-2 sm:flex md:gap-3">
           <a
             href={`mailto:${ORBIT_CONTACT_EMAIL}`}
             className={headerPillClass}
@@ -97,30 +97,30 @@ export function LandingView({ lobby }: LandingViewProps) {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="flex flex-1 flex-col items-center justify-start text-center pt-10 md:pt-20 lg:pt-28"
+        className="flex flex-1 flex-col items-center justify-start text-center pt-10 max-sm:pt-6 md:pt-20 lg:pt-28"
       >
         <motion.div
           variants={itemVariants}
           className="relative z-10 flex w-full flex-col items-center justify-center space-y-0"
         >
-          <h1 className="font-serif text-[5.5rem] leading-[0.9] tracking-tight text-[#f3f4f6] drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] md:text-[7rem]">
+          <h1 className="font-serif text-[5.5rem] leading-[0.9] tracking-tight text-[#f3f4f6] drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] max-sm:text-[2.85rem] max-sm:leading-[0.95] md:text-[7rem]">
             Drop it.
           </h1>
-          <h1 className="relative mt-4 font-serif text-[5.5rem] italic leading-[0.9] tracking-tight text-[#4F8EF7] drop-shadow-[0_0_35px_rgba(79,142,247,0.4)] md:text-[7rem]">
+          <h1 className="relative mt-4 font-serif text-[5.5rem] italic leading-[0.9] tracking-tight text-[#4F8EF7] drop-shadow-[0_0_35px_rgba(79,142,247,0.4)] max-sm:mt-3 max-sm:text-[2.85rem] max-sm:leading-[0.95] md:text-[7rem]">
             Pick it up.
           </h1>
         </motion.div>
 
         <motion.p
           variants={itemVariants}
-          className="mx-auto mt-8 max-w-[26rem] font-sans text-base font-light leading-relaxed tracking-[0.06em] text-neutral-400 md:max-w-[28rem] md:text-lg"
+          className="mx-auto mt-8 max-w-[26rem] font-sans text-base font-light leading-relaxed tracking-[0.06em] text-neutral-400 max-sm:mt-6 max-sm:max-w-[min(100%,18rem)] max-sm:px-1 max-sm:text-[0.9375rem] md:max-w-[28rem] md:text-lg"
         >
           No gate, no compression—just your files, exact and many, a thin pulse
           of progress on the bar. The room orbits while you host it; a day later,
           the trail goes cold.
         </motion.p>
 
-        <motion.div variants={itemVariants} className="mt-10 w-full md:mt-12">
+        <motion.div variants={itemVariants} className="mt-10 w-full max-sm:mt-8 md:mt-12">
           <OrbitDropCards
             onSecondClickCreate={() => lobby.openCreate("card")}
             onSecondClickJoin={() => lobby.openJoin("card")}
@@ -129,7 +129,7 @@ export function LandingView({ lobby }: LandingViewProps) {
 
         <motion.div
           variants={itemVariants}
-          className="mx-auto mt-14 w-full max-w-5xl px-0 text-left md:mt-20"
+          className="mx-auto mt-14 w-full max-w-5xl px-0 text-left max-sm:mt-10 md:mt-20"
         >
           <KeyFeatures />
         </motion.div>

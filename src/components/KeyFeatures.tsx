@@ -50,7 +50,7 @@ export function KeyFeatures() {
               className={`w-1 shrink-0 sm:w-1.5 ${f.accentClass}`}
               aria-hidden
             />
-            <div className="flex min-w-0 flex-1 flex-col gap-3 p-5 sm:p-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 p-5 max-sm:gap-2 max-sm:p-4 sm:gap-3 sm:p-6">
               <div className="flex items-center gap-3">
                 <span className="text-2xl leading-none" aria-hidden>
                   {f.icon}
