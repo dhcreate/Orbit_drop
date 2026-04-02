@@ -13,12 +13,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCloseRoomWhenCreatorOffline } from "@/hooks/useCloseRoomWhenCreatorOffline";
-import { useFileUpload } from "@/hooks/useFileUpload";
 import { useSession } from "@/hooks/useSession";
-import { downloadFileFromUrl } from "@/lib/downloadFileFromUrl";
 import { formatBytes } from "@/lib/utils";
 
 interface DropZoneViewProps {
@@ -38,6 +37,41 @@ type UploadRow = {
   status: "uploading" | "done";
 };
 
+/** Same XHR upload as useFileUpload — inlined here so we can record storageId for uploadedByMe without changing other files. */
+function uploadWithProgress(
+  uploadUrl: string,
+  file: File,
+  onProgress: (ratio: number) => void,
+): Promise<{ storageId: Id<"_storage"> }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl);
+    xhr.responseType = "json";
+    const mime = file.type || "application/octet-stream";
+    xhr.setRequestHeader("Content-Type", mime);
+
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        onProgress(evt.loaded / evt.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const body = xhr.response as { storageId?: string };
+        if (body?.storageId) {
+          resolve({ storageId: body.storageId as Id<"_storage"> });
+          return;
+        }
+      }
+      reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+    };
+
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(file);
+  });
+}
+
 export function DropZoneView({
   roomCode,
   isHost,
@@ -48,6 +82,8 @@ export function DropZoneView({
   const { sessionId } = useSession();
   const enterRoom = useMutation(api.rooms.enterRoom);
   const leaveRoom = useMutation(api.rooms.leaveRoom);
+  const generateUploadUrl = useMutation(api.rooms.generateUploadUrl);
+  const addFileToRoom = useMutation(api.rooms.addFileToRoom);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const room = useQuery(
@@ -65,14 +101,13 @@ export function DropZoneView({
 
   const [isDragging, setIsDragging] = useState(false);
   const [uploadRows, setUploadRows] = useState<UploadRow[]>([]);
+  const [uploadedByMe, setUploadedByMe] = useState<Set<string>>(new Set());
   const [isLeaving, setIsLeaving] = useState(false);
   const leaveInFlight = useRef(false);
-  const [downloadingStorageId, setDownloadingStorageId] = useState<
-    string | null
-  >(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const { uploadFile, isUploading, error, clearError } = useFileUpload(code);
+  const clearUploadError = useCallback(() => setUploadError(null), []);
 
   useCloseRoomWhenCreatorOffline(
     code,
@@ -84,7 +119,7 @@ export function DropZoneView({
     async (list: FileList | File[]) => {
       const files = Array.from(list);
       if (files.length === 0) return;
-      clearError();
+      clearUploadError();
       for (const file of files) {
         const id = `${Date.now()}-${file.name}-${Math.random()}`;
         setUploadRows((r) => [
@@ -97,16 +132,30 @@ export function DropZoneView({
             status: "uploading",
           },
         ]);
+        setIsUploading(true);
+        setUploadError(null);
         try {
-          await uploadFile(file, {
-            onProgress: (p) => {
+          const postUrl = await generateUploadUrl();
+          const { storageId } = await uploadWithProgress(
+            postUrl,
+            file,
+            (p) => {
               setUploadRows((r) =>
                 r.map((row) =>
                   row.id === id ? { ...row, progress: p * 100 } : row,
                 ),
               );
             },
+          );
+          await addFileToRoom({
+            code,
+            storageId,
+            name: file.name,
+            size: file.size,
+            type: file.type || undefined,
+            uploadedAt: Date.now(),
           });
+          setUploadedByMe((prev) => new Set([...prev, String(storageId)]));
           setUploadRows((r) =>
             r.map((row) =>
               row.id === id
@@ -117,12 +166,16 @@ export function DropZoneView({
           setTimeout(() => {
             setUploadRows((r) => r.filter((row) => row.id !== id));
           }, 800);
-        } catch {
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Upload failed";
+          setUploadError(message);
           setUploadRows((r) => r.filter((row) => row.id !== id));
+        } finally {
+          setIsUploading(false);
         }
       }
     },
-    [clearError, uploadFile],
+    [addFileToRoom, clearUploadError, code, generateUploadUrl],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -179,7 +232,18 @@ export function DropZoneView({
   const serverFilesVisible = serverFiles.filter(
     (f) => !pendingNames.has(f.name),
   );
-  const showLogs = serverFilesVisible.length > 0 || uploadRows.length > 0;
+
+  const sentFiles = serverFilesVisible.filter((f) =>
+    uploadedByMe.has(f.storageId),
+  );
+  const receivedFiles = serverFilesVisible.filter(
+    (f) => !uploadedByMe.has(f.storageId),
+  );
+
+  const sentCount = uploadRows.length + sentFiles.length;
+  const receivedCount = receivedFiles.length;
+  const hasAnyFile =
+    uploadRows.length > 0 || sentFiles.length > 0 || receivedFiles.length > 0;
 
   const fullPageScroll =
     "flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-y-contain px-6 py-8 max-sm:px-4 max-sm:py-5 md:px-12";
@@ -314,115 +378,168 @@ export function DropZoneView({
         {isUploading ? (
           <p className="mt-3 text-xs text-neutral-500">Uploading…</p>
         ) : null}
-        {error ? (
-          <p className="mt-3 text-sm text-red-400">{error}</p>
-        ) : null}
-        {downloadError ? (
-          <p className="mt-3 text-sm text-red-400">{downloadError}</p>
+        {uploadError ? (
+          <p className="mt-3 text-sm text-red-400">{uploadError}</p>
         ) : null}
       </div>
 
-      {showLogs ? (
-        <div className="space-y-3">
-          <h3 className="pl-2 text-sm font-medium text-neutral-400">
-            Transfer Session Logs
-          </h3>
-          <div className="space-y-2">
-            {uploadRows.map((file) => (
-              <Card
-                key={file.id}
-                className="flex items-center space-x-4 border-white/5 bg-black/40 p-4 max-sm:space-x-2 max-sm:p-3"
-              >
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <FileText className="h-5 w-5 text-neutral-400" />
+      {hasAnyFile ? (
+        <div className="space-y-4 sm:space-y-5">
+          {/* Sent by you */}
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-4 w-[3px] rounded-full bg-[#4F8EF7]" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.15em] text-[#4F8EF7]/70">
+                Sent by You
+              </span>
+              <span className="ml-auto rounded-full border border-[#4F8EF7]/20 bg-[#4F8EF7]/10 px-2 py-0.5 font-mono text-[10px] text-[#4F8EF7]/60">
+                {sentCount}
+              </span>
+            </div>
+            <div className="space-y-2 overflow-hidden rounded-2xl border border-[#4F8EF7]/10 bg-[#4F8EF7]/[0.02] p-3 sm:p-4">
+              {sentCount === 0 ? (
+                <div className="flex items-center justify-center rounded-xl border border-dashed border-[#4F8EF7]/15 py-6 sm:py-8">
+                  <p className="text-center text-xs text-[#4F8EF7]/30">
+                    Files you drop will appear here
+                  </p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center justify-between">
-                    <p className="max-w-[70%] truncate text-sm font-medium text-white max-sm:max-w-[55%] max-sm:text-xs">
-                      {file.name}
-                    </p>
-                    <span className="text-xs text-neutral-500 max-sm:text-[10px]">
-                      {formatBytes(file.size)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full border border-white/5 bg-black/60 max-sm:h-1">
+              ) : (
+                <>
+                  {uploadRows.map((file, i) => (
                     <motion.div
-                      className="h-full bg-[#4F8EF7] shadow-[0_0_10px_rgba(79,142,247,0.8)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${file.progress}%` }}
-                      transition={{ ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
-                {file.status === "done" ? (
-                  <CheckCircle2 className="h-5 w-5 text-[#4F8EF7]" />
-                ) : null}
-              </Card>
-            ))}
-            {serverFilesVisible.map((f, i) => (
-              <Card
-                key={`${f.storageId}-${i}`}
-                className="flex items-center space-x-4 border-white/5 bg-black/40 p-4 max-sm:space-x-2 max-sm:p-3"
-              >
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <FileText className="h-5 w-5 text-neutral-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center justify-between">
-                    <p className="max-w-[70%] truncate text-sm font-medium text-white max-sm:max-w-[55%] max-sm:text-xs">
-                      {f.name}
-                    </p>
-                    <span className="text-xs text-neutral-500 max-sm:text-[10px]">
-                      {formatBytes(f.size)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full border border-white/5 bg-black/60 max-sm:h-1">
+                      key={file.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <Card className="flex items-center space-x-3 border-l-2 border-l-[#4F8EF7]/40 border-white/5 bg-black/40 p-3 sm:p-4">
+                        <div className="flex-shrink-0 rounded-lg border border-[#4F8EF7]/20 bg-[#4F8EF7]/10 p-2">
+                          <FileText className="h-4 w-4 shrink-0 text-[#4F8EF7]/70 sm:h-5 sm:w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex items-center justify-between">
+                            <p className="max-w-[55%] truncate text-sm font-medium text-white sm:max-w-[70%] sm:text-xs">
+                              {file.name}
+                            </p>
+                            <span className="text-[10px] text-neutral-500 sm:text-xs">
+                              {formatBytes(file.size)}
+                            </span>
+                          </div>
+                          {file.status === "uploading" ? (
+                            <div className="h-1 w-full overflow-hidden rounded-full border border-white/5 bg-black/60 sm:h-1.5">
+                              <motion.div
+                                className="h-full bg-[#4F8EF7] shadow-[0_0_10px_rgba(79,142,247,0.8)]"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${file.progress}%` }}
+                                transition={{ ease: "easeOut" }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                        {file.status === "done" ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-[#4F8EF7] sm:h-5 sm:w-5" />
+                        ) : null}
+                      </Card>
+                    </motion.div>
+                  ))}
+                  {sentFiles.map((f, i) => (
                     <motion.div
-                      className="h-full bg-[#4F8EF7] shadow-[0_0_10px_rgba(79,142,247,0.8)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: "100%" }}
-                      transition={{ ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
-                {f.url ? (
-                  <div className="flex shrink-0 items-center">
-                    <button
-                      type="button"
-                      title="Download to your device"
-                      aria-label={`Download ${f.name}`}
-                      aria-busy={downloadingStorageId === f.storageId}
-                      disabled={downloadingStorageId === f.storageId}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-neutral-400 transition-colors hover:border-[#4F8EF7]/40 hover:text-[#4F8EF7] disabled:pointer-events-none disabled:opacity-50"
-                      onClick={() => {
-                        setDownloadError(null);
-                        void (async () => {
-                          setDownloadingStorageId(f.storageId);
-                          try {
-                            await downloadFileFromUrl(f.url!, f.name);
-                          } catch {
-                            setDownloadError(
-                              "Could not download the file. Try again.",
-                            );
-                          } finally {
-                            setDownloadingStorageId(null);
-                          }
-                        })();
+                      key={f.storageId}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        delay: (uploadRows.length + i) * 0.05,
                       }}
                     >
-                      {downloadingStorageId === f.storageId ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      <Card className="flex items-center space-x-3 border-l-2 border-l-[#4F8EF7]/40 border-white/5 bg-black/40 p-3 sm:p-4">
+                        <div className="flex-shrink-0 rounded-lg border border-[#4F8EF7]/20 bg-[#4F8EF7]/10 p-2">
+                          <FileText className="h-4 w-4 shrink-0 text-[#4F8EF7]/70 sm:h-5 sm:w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="max-w-[55%] truncate text-sm font-medium text-white sm:max-w-[70%] sm:text-xs">
+                              {f.name}
+                            </p>
+                            <span className="text-[10px] text-neutral-500 sm:text-xs">
+                              {formatBytes(f.size)}
+                            </span>
+                          </div>
+                        </div>
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#4F8EF7] sm:h-5 sm:w-5" />
+                      </Card>
+                    </motion.div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Received */}
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-4 w-[3px] rounded-full bg-[#34D399]" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.15em] text-[#34D399]/70">
+                Received
+              </span>
+              <span className="ml-auto rounded-full border border-[#34D399]/20 bg-[#34D399]/10 px-2 py-0.5 font-mono text-[10px] text-[#34D399]/60">
+                {receivedCount}
+              </span>
+            </div>
+            <div className="space-y-2 overflow-hidden rounded-2xl border border-[#34D399]/10 bg-[#34D399]/[0.02] p-3 sm:p-4">
+              {receivedCount === 0 ? (
+                <div className="flex items-center justify-center rounded-xl border border-dashed border-[#34D399]/15 py-6 sm:py-8">
+                  <p className="text-center text-xs text-[#34D399]/30">
+                    Waiting for others to drop files...
+                  </p>
+                </div>
+              ) : (
+                receivedFiles.map((f, i) => (
+                  <motion.div
+                    key={f.storageId}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Card className="flex items-center space-x-3 border-l-2 border-l-[#34D399]/40 border-white/5 bg-black/40 p-3 sm:p-4">
+                      <div className="flex-shrink-0 rounded-lg border border-[#34D399]/20 bg-[#34D399]/10 p-2">
+                        <FileText className="h-4 w-4 shrink-0 text-[#34D399]/70 sm:h-5 sm:w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="max-w-[55%] truncate text-sm font-medium text-white sm:max-w-[65%] sm:text-xs">
+                            {f.name}
+                          </p>
+                          <span className="text-[10px] text-neutral-500 sm:text-xs">
+                            {formatBytes(f.size)}
+                          </span>
+                        </div>
+                      </div>
+                      {f.url ? (
+                        <a
+                          href={f.url}
+                          download={f.name}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex shrink-0 items-center gap-1 rounded-lg border border-[#34D399]/20 bg-[#34D399]/10 px-2 py-1 text-[10px] font-medium text-[#34D399]/80 transition-all duration-200 hover:bg-[#34D399]/20 hover:text-[#34D399] sm:px-3 sm:py-1.5 sm:text-xs"
+                        >
+                          <Download className="h-3 w-3" />
+                          <span className="hidden sm:inline">Save</span>
+                        </a>
                       ) : (
-                        <Download className="h-4 w-4" aria-hidden />
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#34D399] sm:h-5 sm:w-5" />
                       )}
-                    </button>
-                  </div>
-                ) : null}
-              </Card>
-            ))}
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <p className="py-4 text-center text-xs text-neutral-600">
+          Drop a file to get started
+        </p>
+      )}
     </motion.div>
   );
 
