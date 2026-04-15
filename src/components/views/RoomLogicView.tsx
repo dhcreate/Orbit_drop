@@ -5,10 +5,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Loader2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "convex/_generated/api";
+import { RoomUsernameGate } from "@/components/RoomUsernameGate";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useCloseRoomWhenCreatorOffline } from "@/hooks/useCloseRoomWhenCreatorOffline";
+import { useDeviceId } from "@/hooks/useDeviceId";
 import { useSession } from "@/hooks/useSession";
 import type { LobbyOverlay } from "@/lib/lobbyOverlay";
 
@@ -21,7 +23,7 @@ export interface RoomLobbyControls {
 }
 
 interface RoomLogicViewProps {
-  onJoinRoom: (code: string, isHost: boolean) => void;
+  onJoinRoom: (code: string, isHost: boolean, username: string) => void;
   lobbyOverlay: LobbyOverlay;
   lobby: RoomLobbyControls;
 }
@@ -32,11 +34,19 @@ export function RoomLogicView({
   lobby,
 }: RoomLogicViewProps) {
   const { sessionId } = useSession();
+  const deviceId = useDeviceId();
 
   const createRoom = useMutation(api.rooms.createRoom);
+  const enterRoom = useMutation(api.rooms.enterRoom);
   const [isCreating, setIsCreating] = useState(false);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [step, setStep] = useState<"room-select" | "username-gate">(
+    "room-select",
+  );
+  const [pendingCode, setPendingCode] = useState("");
+  const [pendingMode, setPendingMode] = useState<"create" | "join">("create");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   useCloseRoomWhenCreatorOffline(
     createdCode,
@@ -69,6 +79,10 @@ export function RoomLogicView({
       setJoinAttempt(null);
       setIsJoining(false);
       joinHandled.current = false;
+      setStep("room-select");
+      setPendingCode("");
+      setPendingMode("create");
+      setUsernameError(null);
       return;
     }
     if (lobbyOverlay.kind === "join") {
@@ -81,6 +95,10 @@ export function RoomLogicView({
       setJoinAttempt(null);
       setIsJoining(false);
       joinHandled.current = false;
+      setStep("room-select");
+      setPendingCode("");
+      setPendingMode("create");
+      setUsernameError(null);
     }
   }, [lobbyOverlay]);
 
@@ -117,9 +135,10 @@ export function RoomLogicView({
     }
     if (joinHandled.current) return;
     joinHandled.current = true;
-    const host =
-      Boolean(sessionId) && joinResult.creatorId === sessionId;
-    onJoinRoom(joinResult.code, host);
+    setPendingCode(joinResult.code);
+    setPendingMode("join");
+    setStep("username-gate");
+    setUsernameError(null);
     setJoinAttempt(null);
     setIsJoining(false);
   }, [joinAttempt, joinResult, onJoinRoom, sessionId]);
@@ -131,6 +150,8 @@ export function RoomLogicView({
     try {
       const code = await createRoom({ creatorSessionId: sessionId });
       setCreatedCode(code);
+      setPendingCode(code);
+      setPendingMode("create");
     } catch (e) {
       setCreateError(
         e instanceof Error ? e.message : "Could not create room.",
@@ -138,6 +159,38 @@ export function RoomLogicView({
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleEnterRoom = () => {
+    if (!createdCode) return;
+    setPendingCode(createdCode);
+    setPendingMode("create");
+    setStep("username-gate");
+    setUsernameError(null);
+  };
+
+  const handleBackFromUsername = () => {
+    setStep("room-select");
+    setUsernameError(null);
+  };
+
+  const handleUsernameConfirmed = async (username: string) => {
+    if (!sessionId || !deviceId || !pendingCode) return;
+    const result = await enterRoom({
+      code: pendingCode,
+      sessionId,
+      username,
+      deviceId,
+    });
+    if (!result.ok) {
+      setUsernameError(
+        result.reason === "username_taken"
+          ? "This name is already taken in this room."
+          : "Could not enter room. Please try again.",
+      );
+      return;
+    }
+    onJoinRoom(pendingCode, pendingMode === "create", username);
   };
 
   const handleJoinSubmit = (e: React.FormEvent) => {
@@ -160,7 +213,29 @@ export function RoomLogicView({
       exit={{ opacity: 0, scale: 0.95 }}
       className="flex flex-col items-center space-y-6 pt-4"
     >
-      {!createdCode ? (
+      {step === "username-gate" ? (
+        <div className="w-full">
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={handleBackFromUsername}
+            className="mx-auto mb-4 flex items-center gap-1.5 text-xs text-neutral-500 transition-colors duration-200 hover:text-neutral-300 sm:mx-0 sm:text-sm"
+          >
+            ← Back
+          </motion.button>
+          <RoomUsernameGate
+            roomCode={pendingCode}
+            deviceId={deviceId}
+            mode="create"
+            onConfirm={(name) => void handleUsernameConfirmed(name)}
+          />
+          {usernameError ? (
+            <p className="mt-3 text-center text-sm text-red-400">
+              {usernameError}
+            </p>
+          ) : null}
+        </div>
+      ) : !createdCode ? (
         <Button
           onClick={() => void handleCreate()}
           disabled={isCreating || !sessionId}
@@ -182,7 +257,7 @@ export function RoomLogicView({
             </span>
           </div>
           <Button
-            onClick={() => onJoinRoom(createdCode, true)}
+            onClick={handleEnterRoom}
             className="mt-4 h-14 w-full max-sm:h-12"
           >
             Enter Room
@@ -203,6 +278,31 @@ export function RoomLogicView({
       onSubmit={handleJoinSubmit}
       className="flex flex-col space-y-4 pt-4"
     >
+      {step === "username-gate" ? (
+        <div className="w-full">
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={handleBackFromUsername}
+            type="button"
+            className="mx-auto mb-4 flex items-center gap-1.5 text-xs text-neutral-500 transition-colors duration-200 hover:text-neutral-300 sm:mx-0 sm:text-sm"
+          >
+            ← Back
+          </motion.button>
+          <RoomUsernameGate
+            roomCode={pendingCode}
+            deviceId={deviceId}
+            mode="join"
+            onConfirm={(name) => void handleUsernameConfirmed(name)}
+          />
+          {usernameError ? (
+            <p className="mt-3 text-center text-sm text-red-400">
+              {usernameError}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <>
       <div className="relative space-y-2">
         <label className="text-sm font-medium text-neutral-400">
           Enter 6-Digit Code
@@ -235,6 +335,8 @@ export function RoomLogicView({
         ) : null}
         Connect to Room
       </Button>
+        </>
+      )}
     </motion.form>
   );
 

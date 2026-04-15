@@ -15,6 +15,8 @@ export default defineSchema({
         size: v.number(),
         type: v.optional(v.string()),
         uploadedAt: v.optional(v.number()),
+        uploaderName: v.optional(v.string()),
+        uploaderDeviceId: v.optional(v.string()),
       }),
     ),
   }).index("by_code", ["code"]),
@@ -25,4 +27,15 @@ export default defineSchema({
   })
     .index("by_code_and_session", ["code", "sessionId"])
     .index("by_code", ["code"]),
+
+  roomMembers: defineTable({
+    code: v.string(),
+    sessionId: v.string(),
+    deviceId: v.string(),
+    username: v.string(),
+    joinedAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_code_session", ["code", "sessionId"])
+    .index("by_code_device", ["code", "deviceId"]),
 });

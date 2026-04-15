@@ -13,6 +13,10 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   html,
   body {
     overflow-x: hidden;
@@ -27,6 +31,8 @@
 
   /* Slim scrollbars aligned with Orbit (dark + #4F8EF7) */
   * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: rgba(79, 142, 247, 0.45) rgba(255, 255, 255, 0.06);
   }
@@ -53,5 +59,15 @@
 
   *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  @media (max-width: 640px) {
+    button {
+      min-height: 40px;
+    }
+
+    a[download] {
+      min-height: 32px;
+    }
   }
 }

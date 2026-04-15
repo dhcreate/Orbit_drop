@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DropZoneView } from "@/components/views/DropZoneView";
 import { LandingView } from "@/components/views/LandingView";
 import { RoomLogicView } from "@/components/views/RoomLogicView";
+import { useDeviceId } from "@/hooks/useDeviceId";
 import type { LobbyOverlay } from "@/lib/lobbyOverlay";
 
 const CanvasBackground = dynamic(
@@ -16,11 +17,14 @@ const CanvasBackground = dynamic(
 type AppState = "room-logic" | "drop-zone";
 
 export default function Home() {
+  const deviceId = useDeviceId();
+
   const [appState, setAppState] = useState<AppState>("room-logic");
   const [roomData, setRoomData] = useState<{
     code: string;
     isHost: boolean;
   } | null>(null);
+  const [currentUsername, setCurrentUsername] = useState("");
   /** Bump after leaving a room so RoomLogicView remounts with a clean create/join state. */
   const [lobbyKey, setLobbyKey] = useState(0);
   const [lobbyOverlay, setLobbyOverlay] = useState<LobbyOverlay>(null);
@@ -59,10 +63,16 @@ export default function Home() {
     };
   }, [appState]);
 
-  const handleJoinRoom = (code: string, host: boolean) => {
+  const handleJoinRoom = (code: string, host: boolean, username: string) => {
     setLobbyOverlay(null);
     setRoomData({ code, isHost: host });
+    setCurrentUsername(username);
     setAppState("drop-zone");
+    setTimeout(() => {
+      document.getElementById("app")?.scrollIntoView({
+        behavior: "smooth",
+      });
+    }, 100);
   };
 
   const handleLeaveRoom = useCallback(() => {
@@ -109,8 +119,11 @@ export default function Home() {
               transition={{ duration: 0.2 }}
             >
               <DropZoneView
+                key={`drop-zone-${roomData.code}`}
                 roomCode={roomData.code}
                 isHost={roomData.isHost}
+                currentUsername={currentUsername}
+                currentDeviceId={deviceId}
                 onLeaveRoom={handleLeaveRoom}
                 fullPage
               />

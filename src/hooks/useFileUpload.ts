@@ -39,7 +39,11 @@ function uploadWithProgress(
   });
 }
 
-export function useFileUpload(roomCode: string) {
+export function useFileUpload(
+  roomCode: string,
+  uploaderName: string,
+  uploaderDeviceId: string,
+) {
   const generateUploadUrl = useMutation(api.rooms.generateUploadUrl);
   const addFileToRoom = useMutation(api.rooms.addFileToRoom);
   const [progress, setProgress] = useState(0);
@@ -72,6 +76,8 @@ export function useFileUpload(roomCode: string) {
           size: file.size,
           type: file.type || undefined,
           uploadedAt: Date.now(),
+          uploaderName,
+          uploaderDeviceId,
         });
         setProgress(1);
       } catch (e) {
@@ -82,8 +88,20 @@ export function useFileUpload(roomCode: string) {
         setIsUploading(false);
       }
     },
-    [addFileToRoom, generateUploadUrl, roomCode],
+    [
+      addFileToRoom,
+      generateUploadUrl,
+      roomCode,
+      uploaderDeviceId,
+      uploaderName,
+    ],
   );
 
-  return { uploadFile, progress, isUploading, error, clearError: () => setError(null) };
+  return {
+    uploadFile,
+    progress,
+    isUploading,
+    error,
+    clearError: () => setError(null),
+  };
 }
